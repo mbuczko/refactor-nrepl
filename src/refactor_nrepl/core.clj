@@ -3,12 +3,14 @@
             [clojure.string :as str]
             [clojure.tools.namespace.parse :as parse]
             [clojure.tools.reader.reader-types :as readers]
-            [orchard.classpath]
+            [orchard.java.classpath :as cp]
+            [orchard.misc :as misc]
             [me.raynes.fs :as fs]
             [refactor-nrepl.util :refer [normalize-to-unix-path]]
             [refactor-nrepl.s-expressions :as sexp]
             [refactor-nrepl.config :as config])
-  (:import [java.io File FileReader PushbackReader StringReader]))
+  (:import [java.io File FileReader PushbackReader StringReader]
+           (java.net URI URL)))
 
 (defn version []
   (let [v (-> (or (io/resource "refactor-nrepl/refactor-nrepl/project.clj")
@@ -41,13 +43,23 @@
               false
               (:ignore-paths config/*config*))))
 
+(defn classpath-dirs-seq
+  "Returns a sequence of all descendant directories"
+  [^URL url]
+  (let [f (io/as-file url)]
+    (when-not (misc/archive? url)
+      (->> (file-seq f)
+           (filter #(.isDirectory ^File %))
+           (map #(.getPath ^File %))))))
+
 (defn dirs-on-classpath
   "Return all dirs on classpath, filtering out our inlined deps
   directory and paths matching :ignore-paths specified in config.
   Follows the semantics of orchard classpath."
   []
-  (->> (orchard.classpath/classpath-directories)
-       (remove #(-> % str normalize-to-unix-path (.endsWith "target/srcdeps")))))
+  (->> (cp/classpath)
+       (mapcat classpath-dirs-seq)
+       (remove ignore-dir-on-classpath?)))
 
 (defn project-root
   "Return the project root directory.
